@@ -15,6 +15,19 @@ The ESP8266 first boots in SoftAP mode, so we can connect to it using the mobile
 
 By searching the Wi-Fi networks on your mobile you will find a network named something like: `Verde_xxxxxxxxxxx`. You will have to connect to it using the your pot password(you will be given this password).
 
+Now, to be able to receive the credentials for the TN, a web sever will be created. It will be available at `http://<SoftAP IP>:80/target-network`.
+
+ The server will listen to this endpoint, so to send the credentials for the TN you will need to call:
+```json
+HTTP POST http://<SoftAP IP>:80/target-network
+ {
+   "ssid":"TP-LINK_BE92",
+   "pass":"53342xxx"
+ }
+```
+If the call is successful, you should see the following HTTP response:
+`204 No Content`
+
 
 
 Dependencies:
@@ -22,3 +35,11 @@ Dependencies:
 
   * Source: https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WiFi
   * Docs: https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/readme.html
+
+2. ESP8266WebServer Arduino library:
+    * Source: https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WebServer
+    * Docs: https://lastminuteengineers.com/creating-esp8266-web-server-arduino-ide/
+      https://github.com/jeremypoulter/SmartPlug/blob/master/src/web_ui.cpp#L111:L151
+
+3. ArduinoJson Arduino library:
+    * Source/Docs: https://arduinojson.org/
