@@ -43,3 +43,6 @@ Dependencies:
 
 3. ArduinoJson Arduino library:
     * Source/Docs: https://arduinojson.org/
+
+
+    https://github.com/arkhipenko/TaskScheduler/wiki/Creating-TaskScheduler---friendly-libraries
