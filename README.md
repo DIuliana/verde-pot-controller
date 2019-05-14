@@ -15,7 +15,9 @@ The ESP8266 first boots in SoftAP mode, so we can connect to it using the mobile
 
 By searching the Wi-Fi networks on your mobile you will find a network named something like: `Verde_xxxxxxxxxxx`. You will have to connect to it using the your pot password(you will be given this password).
 
-Now, to be able to receive the credentials for the TN, a web sever will be created. It will be available at `http://<SoftAP IP>:80/target-network`.
+Now, to be able to receive the credentials for the TN, a web sever will be created. It will be available at:
+
+ `http://<SoftAP IP>:80/target-network`.
 
  The server will listen to this endpoint, so to send the credentials for the TN you will need to call:
 ```json
@@ -28,7 +30,38 @@ HTTP POST http://<SoftAP IP>:80/target-network
 If the call is successful, you should see the following HTTP response:
 `204 No Content`
 
+**Switch to station mode(SM)**
 
+
+After receiving the credentials, ESP8266 will switch to **Station mode** so it will be able to connect to the TN.  If the connection takes more than 20 sec, it will try to reconnect again.
+
+![ESP8266 Station mode](doc/images/station_mode.png "ESP8266 Station mode")
+
+
+For being able to know the status of the connection from the mobile phone, another endpoint is exposed:
+
+`http://<SoftAP IP>:80/target-network/status`.
+
+Successfully calling this endpoint with HTTP GET method will result in the following response:
+```
+{
+  "resp" : "<connection_status>"
+}
+```  
+where `<connection_status>` values can be:
+```
+ 0  (WL_IDLE_STATUS)
+ 1  (WL_NO_SSID_AVAIL)
+ 2  (WL_SCAN_COMPLETED)
+ 3  (WL_CONNECTED)
+ 4  (WL_CONNECT_FAILED)
+ 5  (WL_CONNECTION_LOST)
+ 6  (WL_DISCONNECTED)
+```
+On the mobile phone, these responses must be handled accordingly: if the response has connection status is different than 3, this may represent the fact that the credentials must be sent again until the status endpoint will respond with `3 (WL_CONNECTED)`.
+
+
+Once the credentials were sent and the connection was successful, the **SoftAP mode** must be disabled.
 
 Dependencies:
 1.  ESP8266WiFi Arduino library:
@@ -37,6 +70,7 @@ Dependencies:
   * Docs: https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/readme.html
 
 2. ESP8266WebServer Arduino library:
+
     * Source: https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WebServer
     * Docs: https://lastminuteengineers.com/creating-esp8266-web-server-arduino-ide/
       https://github.com/jeremypoulter/SmartPlug/blob/master/src/web_ui.cpp#L111:L151
@@ -44,5 +78,7 @@ Dependencies:
 3. ArduinoJson Arduino library:
     * Source/Docs: https://arduinojson.org/
 
-
-    https://github.com/arkhipenko/TaskScheduler/wiki/Creating-TaskScheduler---friendly-libraries
+4. TaskScheduler
+    * Source: https://github.com/arkhipenko/TaskScheduler/
+    * Docs: https://github.com/arkhipenko/TaskScheduler/wiki/Creating-TaskScheduler---friendly-libraries
+            https://github.com/arkhipenko/TaskScheduler/wiki/API-Documentation

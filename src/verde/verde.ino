@@ -7,28 +7,34 @@
 
 const char* ssid;
 const char* pass;
+int count = 0;
 ESP8266WebServer server(80);
 
 
 void createSoftAccessPoint();
 void checkConnectedStations();
 void startServer();
-void waitForRequest();
+void serverListen();
+void wifiConnect();
+void checkWifiStatus();
 
-StatusRequest SAPconnectionStatus;
+StatusRequest SAPconnection;
 Scheduler scheduler;
 
 Task createSoftAccessPointTask(0, TASK_ONCE, &createSoftAccessPoint, &scheduler, true);
 Task waitForConnectionTask(500, TASK_FOREVER, &checkConnectedStations, &scheduler, true);
 Task createHTTPServerTask(0 ,TASK_ONCE, &startServer, &scheduler);
-Task waitForRequestTask(500, TASK_FOREVER, &waitForRequest, &scheduler);
+Task serverListenTask(500, TASK_FOREVER, &serverListen, &scheduler);
+Task wifiConnectTask(20*1000, TASK_FOREVER, &wifiConnect, &scheduler);
+Task checkWifiStatusTask(500, TASK_FOREVER, &checkWifiStatus, &scheduler);
 
 void setup() {
   Serial.begin(9600);
   scheduler.startNow();
 
-  SAPconnectionStatus.setWaiting();
-  createHTTPServerTask.waitFor(&SAPconnectionStatus);
+  SAPconnection.setWaiting();
+  createHTTPServerTask.waitFor(&SAPconnection);
+  
 }
 
 
@@ -53,7 +59,7 @@ void checkConnectedStations(){
 
     //self disable task
     waitForConnectionTask.disable();
-    SAPconnectionStatus.signalComplete();
+    SAPconnection.signalComplete();
   }
 }
 
@@ -62,12 +68,41 @@ void startServer(){
   server.begin();
   Serial.println("Server started...");
   //enable next task
-  waitForRequestTask.enable();
+  serverListenTask.enable();
 }
 
-void waitForRequest(){
-  Serial.println("Waiting for TN credentials...");
+void serverListen(){
   server.handleClient();
+}
+
+// entry point for an already existing network 
+void wifiConnect(){
+  Serial.println("Wifi begin...");
+  WiFi.begin(ssid, pass);
+  
+  //check for wifi status task
+  checkWifiStatusTask.enable();
+  wifiConnectTask.disable();
+ 
+}
+
+//try to connect for 20 seconds
+void checkWifiStatus(){
+  
+  count++;
+  if (WiFi.status() != WL_CONNECTED){
+    Serial.print(".");
+  }
+  if(WiFi.status() == WL_CONNECTED){
+    Serial.println("WiFi connected"); 
+    checkWifiStatusTask.disable();
+  }
+  // TODO handle here && serverNotStarted
+  if(count == 20) { 
+    wifiConnectTask.enable();
+    count = 0;
+  }
+ 
 }
 
 /*
@@ -76,8 +111,9 @@ void waitForRequest(){
  */
 void addServerEndpoints(){
   server.on("/target-network", handleTargetNetworkRequest);
+  server.on("/target-network/status", handleTargetNetworkStatusRequest);
   server.onNotFound(handleNotFound);
-   Serial.println("Registered server endpoints");
+  Serial.println("Registered server endpoints");
 }
 
 /*
@@ -85,6 +121,7 @@ void addServerEndpoints(){
  */
 void handleNotFound(){
   server.send(404, "application/json", createResponse("Not found"));
+   Serial.println("Returned 400 - Not found");
 }
 
 /*
@@ -96,6 +133,7 @@ void handleTargetNetworkRequest(){
 
   if (!server.hasArg("plain")) {
     server.send(500, "application/json", createResponse("Body not received"));
+    Serial.println("Returned 500 - Body not received");
     return;
   }
   else {
@@ -106,7 +144,19 @@ void handleTargetNetworkRequest(){
     Serial.println(ssid);
     Serial.println(pass);
     server.send(204, "application/json", createResponse(""));
+    Serial.println("Returned 204");
+    //enable wifi connect
+    wifiConnectTask.enable();
   }
+}
+
+void handleTargetNetworkStatusRequest() {
+  String connectionStatus = String(WiFi.status());
+  server.send(200, "application/json", createResponse(connectionStatus));
+  Serial.println("Returned 200, connection status: "+ connectionStatus);
+  if(WiFi.status() == WL_CONNECTED) {
+    serverListenTask.disable();    
+  }  
 }
 
 String createResponse(String respMessage){
