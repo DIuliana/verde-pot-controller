@@ -3,13 +3,16 @@
 
 #include <TaskScheduler.h>
 #include <ESP8266WebServer.h>
+#include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 
 const char* ssid;
 const char* pass;
 int count = 0;
 ESP8266WebServer server(80);
-
+WebSocketsClient webSocketsClient;
+char webSocketsServerPath[] = "/verde/socket/pot/Verde_31529819901";
+char webSocketsServerHost[] = "91347912.ngrok.io";
 
 void createSoftAccessPoint();
 void checkConnectedStations();
@@ -18,6 +21,8 @@ void serverListen();
 void wifiConnect();
 void checkWifiStatus();
 void printWifiStatus();
+void createWebSocketsConnection();
+void runWebSocketsClient();
 
 StatusRequest SAPconnection;
 Scheduler scheduler;
@@ -29,6 +34,9 @@ Task serverListenTask(500, TASK_FOREVER, &serverListen, &scheduler);
 Task wifiConnectTask(20*1000, TASK_FOREVER, &wifiConnect, &scheduler);
 Task checkWifiStatusTask(500, TASK_FOREVER, &checkWifiStatus, &scheduler);
 Task printWifiStatusTask(30*5000, TASK_FOREVER, &printWifiStatus, &scheduler);
+Task createWebSocketsConnectionTask(0, TASK_ONCE, &createWebSocketsConnection, &scheduler);
+Task runWebSocketsClientTask(50, TASK_FOREVER, &runWebSocketsClient, &scheduler);
+
 
 void setup() {
   Serial.begin(9600);
@@ -99,6 +107,8 @@ void checkWifiStatus(){
   if(WiFi.status() == WL_CONNECTED){
     Serial.println("WiFi connected");
     checkWifiStatusTask.disable();
+    createWebSocketsConnectionTask.enable();
+    runWebSocketsClientTask.enable();
   }
   // TODO handle here && serverNotStarted
   if(count == 20) {
@@ -111,6 +121,23 @@ void checkWifiStatus(){
 void printWifiStatus(){
    Serial.print("WiFi status: ");
    Serial.println(WiFi.status());
+}
+
+void createWebSocketsConnection(){
+  Serial.print("Establishing webSockets connection at: ");
+  Serial.println(webSocketsServerHost);
+
+  webSocketsClient.begin(webSocketsServerHost, 80, webSocketsServerPath);
+  webSocketsClient.onEvent(webSocketEvent);
+  webSocketsClient.setReconnectInterval(5000);
+
+  // ping server every 15000 ms, expect pong from server within 3000 ms and consider disconnected if pong is not received 2 times
+  //TODO investigate why the pong is not received - causes disconnection; work around 2->0
+  webSocketsClient.enableHeartbeat(15000, 3000, 2);
+}
+
+void runWebSocketsClient(){
+  webSocketsClient.loop();
 }
 
 /*
@@ -179,4 +206,51 @@ String createResponse(String respMessage){
   String json;
   response.prettyPrintTo(json);
   return json;
+}
+
+
+
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+
+  switch(type) {
+    case WStype_DISCONNECTED:
+      Serial.printf("[WSc] Disconnected!\n");
+      break;
+    case WStype_CONNECTED:
+      Serial.printf("[WSc] Connected to url: %s\n", payload);
+      // send message to server when Connected
+      webSocketsClient.sendTXT("Connected");
+      break;
+    case WStype_TEXT:{
+      Serial.printf("[WSc] get text: %s\n", payload);
+
+      char* response = determineClientResponse(payload);
+      if(response != NULL){
+        Serial.printf("[WSc] send text: %s\n", response);
+        webSocketsClient.sendTXT(response);
+      }
+      break;
+    }
+    case WStype_BIN:
+      Serial.printf("[WSc] get binary length: %u\n", length);
+      hexdump(payload, length);
+
+      // send data to server
+      // webSocketsClient.sendBIN(payload, length);
+      break;
+  }
+
+}
+
+//TODO json parse
+ char* determineClientResponse(uint8_t * payload){
+
+  char* response = NULL;
+  String str = (char*)payload;
+  if(str.endsWith("status!")){
+    response = "message here";
+  }
+
+  return response;
+
 }

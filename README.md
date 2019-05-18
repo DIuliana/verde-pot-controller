@@ -61,7 +61,24 @@ where `<connection_status>` values can be:
 On the mobile phone, these responses must be handled accordingly: if the response has connection status is different than 3, this may represent the fact that the credentials must be sent again until the status endpoint will respond with `3 (WL_CONNECTED)`.
 
 
-Once the credentials were sent and the connection was successful, the **SoftAP mode** must be disabled.
+Once the credentials were sent and the connection is successful, the **SoftAP mode** is disabled.
+
+
+ ### Websockets Connection
+
+WS protocol was chosen because it offers a bidirectional, instant communication between client and server. To establish a WS connection, it is required for the client to send a handshake request to the server.
+
+![ESP8266 Station mode](doc/images/WS.png "ESP8266 Station mode")
+
+In this context, ESP8266 plays the client role because it needs to know the address of the server in order to do the handshake.
+
+The WS Server is available over Internet at: `b5ec4d23.ngrok.io/verde/socket/pot/{id}`.
+
+After the handshake, if the connection was successfully established, the client will send a ping message at 15 seconds interval. If not receiving 2 pongs from the server it will disconnect.
+
+If disconnected, it will automatically try to connect again after 5 seconds.
+
+
 
 Dependencies:
 1.  ESP8266WiFi Arduino library:
@@ -82,3 +99,6 @@ Dependencies:
     * Source: https://github.com/arkhipenko/TaskScheduler/
     * Docs: https://github.com/arkhipenko/TaskScheduler/wiki/Creating-TaskScheduler---friendly-libraries
             https://github.com/arkhipenko/TaskScheduler/wiki/API-Documentation
+
+5. Websockets
+    * Source: https://github.com/Links2004/arduinoWebSockets
