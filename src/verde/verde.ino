@@ -17,6 +17,7 @@ void startServer();
 void serverListen();
 void wifiConnect();
 void checkWifiStatus();
+void printWifiStatus();
 
 StatusRequest SAPconnection;
 Scheduler scheduler;
@@ -27,6 +28,7 @@ Task createHTTPServerTask(0 ,TASK_ONCE, &startServer, &scheduler);
 Task serverListenTask(500, TASK_FOREVER, &serverListen, &scheduler);
 Task wifiConnectTask(20*1000, TASK_FOREVER, &wifiConnect, &scheduler);
 Task checkWifiStatusTask(500, TASK_FOREVER, &checkWifiStatus, &scheduler);
+Task printWifiStatusTask(30*5000, TASK_FOREVER, &printWifiStatus, &scheduler);
 
 void setup() {
   Serial.begin(9600);
@@ -34,7 +36,7 @@ void setup() {
 
   SAPconnection.setWaiting();
   createHTTPServerTask.waitFor(&SAPconnection);
-  
+
 }
 
 
@@ -45,6 +47,7 @@ void loop() {
 
 void createSoftAccessPoint() {
   Serial.println("Creating Soft Access Point...");
+  WiFi.mode(WIFI_AP_STA);
   boolean ready = WiFi.softAP("Verde_31529819901", "123456789");
   Serial.println(ready ? "SoftAP ready" : "SoftAP failed");
   Serial.print("SoftAP IP address: ");
@@ -75,34 +78,39 @@ void serverListen(){
   server.handleClient();
 }
 
-// entry point for an already existing network 
+// entry point for an already existing network
 void wifiConnect(){
   Serial.println("Wifi begin...");
   WiFi.begin(ssid, pass);
-  
+
   //check for wifi status task
   checkWifiStatusTask.enable();
   wifiConnectTask.disable();
- 
+
 }
 
 //try to connect for 20 seconds
 void checkWifiStatus(){
-  
+
   count++;
   if (WiFi.status() != WL_CONNECTED){
     Serial.print(".");
   }
   if(WiFi.status() == WL_CONNECTED){
-    Serial.println("WiFi connected"); 
+    Serial.println("WiFi connected");
     checkWifiStatusTask.disable();
   }
   // TODO handle here && serverNotStarted
-  if(count == 20) { 
+  if(count == 20) {
     wifiConnectTask.enable();
     count = 0;
   }
- 
+
+}
+
+void printWifiStatus(){
+   Serial.print("WiFi status: ");
+   Serial.println(WiFi.status());
 }
 
 /*
@@ -155,16 +163,19 @@ void handleTargetNetworkStatusRequest() {
   server.send(200, "application/json", createResponse(connectionStatus));
   Serial.println("Returned 200, connection status: "+ connectionStatus);
   if(WiFi.status() == WL_CONNECTED) {
-    serverListenTask.disable();    
-  }  
+    serverListenTask.disable();
+    delay(500);
+    WiFi.softAPdisconnect(true);
+    printWifiStatusTask.enable();
+  }
 }
 
 String createResponse(String respMessage){
-  
+
   StaticJsonBuffer<200> jsonBufferResp;
   JsonObject& response = jsonBufferResp.createObject();
-  
-  response["resp"] = respMessage;  
+
+  response["resp"] = respMessage;
   String json;
   response.prettyPrintTo(json);
   return json;
