@@ -68,7 +68,7 @@ Once the credentials were sent and the connection is successful, the **SoftAP mo
 
 WS protocol was chosen because it offers a bidirectional, instant communication between client and server. To establish a WS connection, it is required for the client to send a handshake request to the server.
 
-![ESP8266 Station mode](doc/images/WS.png "ESP8266 Station mode")
+![ESP8266 Station mode](doc/images/WS.png "ESP8266 WebSockets client")
 
 In this context, ESP8266 plays the client role because it needs to know the address of the server in order to do the handshake.
 
@@ -77,6 +77,28 @@ The WS Server is available over Internet at: `b5ec4d23.ngrok.io/verde/socket/pot
 After the handshake, if the connection was successfully established, the client will send a ping message at 15 seconds interval. If not receiving 2 pongs from the server it will disconnect.
 
 If disconnected, it will automatically try to connect again after 5 seconds.
+
+### Communication
+
+ESP8266 will communicate with it's mobile 'pair' trough the [VWSS](https://github.com/DIuliana/verde-websockets-server). Depending on what messages are received, the required actions are made and the according responses transmitted back.
+
+
+#### 1. Watering system
+
+The watering system is based upon a humidity sensor and a water pump. When the humidity gets under a certain level, the water pump will start.
+
+**Messaging**
+
+ESP8266 will listen to JSON messages like:
+
+```json
+{
+    "target_humidity": 40
+}
+```
+
+![ESP8266 Station mode](doc/images/watering_messages.png "Watering system messages")
+
 
 
 

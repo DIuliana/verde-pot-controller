@@ -1,6 +1,9 @@
 #define _TASK_SLEEP_ON_IDLE_RUN
 #define _TASK_STATUS_REQUEST
 
+#define HUMIDITY_SENSOR_PIN 0
+#define WATER_PUMP_PIN 4
+
 #include <TaskScheduler.h>
 #include <ESP8266WebServer.h>
 #include <WebSocketsClient.h>
@@ -9,10 +12,13 @@
 const char* ssid;
 const char* pass;
 int count = 0;
+float moisturePerc;
+float targetHumidity = 0.0;
+
 ESP8266WebServer server(80);
 WebSocketsClient webSocketsClient;
 char webSocketsServerPath[] = "/verde/socket/pot/Verde_31529819901";
-char webSocketsServerHost[] = "91347912.ngrok.io";
+char webSocketsServerHost[] = "6f030abc.ngrok.io";
 
 void createSoftAccessPoint();
 void checkConnectedStations();
@@ -23,6 +29,7 @@ void checkWifiStatus();
 void printWifiStatus();
 void createWebSocketsConnection();
 void runWebSocketsClient();
+void readSensorValues();
 
 StatusRequest SAPconnection;
 Scheduler scheduler;
@@ -36,6 +43,7 @@ Task checkWifiStatusTask(500, TASK_FOREVER, &checkWifiStatus, &scheduler);
 Task printWifiStatusTask(30*5000, TASK_FOREVER, &printWifiStatus, &scheduler);
 Task createWebSocketsConnectionTask(0, TASK_ONCE, &createWebSocketsConnection, &scheduler);
 Task runWebSocketsClientTask(50, TASK_FOREVER, &runWebSocketsClient, &scheduler);
+Task readSensorValuesTask(10*1000, TASK_FOREVER, &readSensorValues, &scheduler);
 
 
 void setup() {
@@ -44,7 +52,9 @@ void setup() {
 
   SAPconnection.setWaiting();
   createHTTPServerTask.waitFor(&SAPconnection);
-
+  pinMode(HUMIDITY_SENSOR_PIN, INPUT);
+  pinMode(WATER_PUMP_PIN, OUTPUT);
+  digitalWrite(WATER_PUMP_PIN, HIGH);
 }
 
 
@@ -137,6 +147,8 @@ void createWebSocketsConnection(){
 }
 
 void runWebSocketsClient(){
+  readSensorValuesTask.enable();
+  
   webSocketsClient.loop();
 }
 
@@ -197,6 +209,20 @@ void handleTargetNetworkStatusRequest() {
   }
 }
 
+void readSensorValues() {
+  int value = analogRead(HUMIDITY_SENSOR_PIN);
+  
+  moisturePerc = ( 100 - ( (value/1024.00) * 100 ) );
+//  Serial.println(moisturePerc);
+
+//TODO create task for starting/stoping the pump
+  if(moisturePerc < targetHumidity) {
+    digitalWrite(WATER_PUMP_PIN, LOW);
+  } else {
+    digitalWrite(WATER_PUMP_PIN, HIGH);
+  }
+}
+
 String createResponse(String respMessage){
 
   StaticJsonBuffer<200> jsonBufferResp;
@@ -224,7 +250,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     case WStype_TEXT:{
       Serial.printf("[WSc] get text: %s\n", payload);
 
-      char* response = determineClientResponse(payload);
+      char* response = parseTargetHumidityMessage(payload);
       if(response != NULL){
         Serial.printf("[WSc] send text: %s\n", response);
         webSocketsClient.sendTXT(response);
@@ -242,15 +268,24 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
 }
 
-//TODO json parse
- char* determineClientResponse(uint8_t * payload){
-
+//TODO message protocol
+char* parseTargetHumidityMessage(uint8_t * payload){
+  
   char* response = NULL;
   String str = (char*)payload;
-  if(str.endsWith("status!")){
-    response = "message here";
-  }
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(str);
 
+  float receivedTargetHumidity = root["target_humidity"];
+  if(receivedTargetHumidity != NULL){
+    targetHumidity = receivedTargetHumidity;
+    Serial.println(targetHumidity);
+    if(moisturePerc < targetHumidity){
+      response = "water pump started";
+    }else{
+      response = "water pump stoped";
+    }
+  }
   return response;
 
 }
